@@ -66,9 +66,8 @@ Add to `~/.claude/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "second-brain": {
-      "command": "oe-brain-mcp",
-      "type": "stdio"
+    "oe-brain": {
+      "command": "oe-brain-mcp"
     }
   }
 }
@@ -94,21 +93,12 @@ Add hooks to `~/.claude/settings.json`:
 }
 ```
 
-### 4. Enable Automatic Capture
+### 4. Install the Skill
 
-Add the following to your global `~/.claude/CLAUDE.md` so Claude proactively uses the second-brain tools without being asked:
+Copy the OE-Brain skill so Claude Code knows how and when to use the MCP tools:
 
-```markdown
-## Second Brain
-
-Always use the second-brain MCP tools proactively:
-- At session start: load branch context (`get_branch_context`) and check open tasks (`list_tasks`)
-- During work: capture architectural decisions (`capture_decision`) and non-obvious learnings (`capture_learned`) as they happen — don't batch these at the end
-- When a TODO emerges: use `capture_task` immediately
-- At session end: always write a `capture_session_summary` with what was done, key decisions, and next steps
-
-Don't wait to be asked. If you made a tradeoff or learned something surprising, capture it.
-Skip routine changes — only capture what would be useful to you or a teammate in a future session.
+```bash
+cp -r .claude/skills/oe-brain ~/.claude/skills/oe-brain
 ```
 
 ### 5. Verify
@@ -205,7 +195,7 @@ docker push gcr.io/oe-tesla-development-2/oe-brain:v1
 
 ```bash
 helm install oe-brain deploy/helm/oe-brain \
-  --set secrets.databaseUrl="postgresql://user:pass@host:5432/second_brain" \
+  --set secrets.databaseUrl="postgresql://user:pass@host:5432/oe_brain" \
   --set secrets.apiToken="<generate-a-token>" \
   --set secrets.openrouterApiKey="sk-or-..." \
   --set config.ollamaBaseUrl="http://ollama:11434"
@@ -256,7 +246,7 @@ vault_path: ~/path/to/obsidian/vault
 context_dir: context
 
 database:
-  connection_string: postgresql://localhost:5432/second_brain
+  connection_string: postgresql://localhost:5432/oe_brain
 
 ollama:
   base_url: http://localhost:11434

@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Config } from '../types.js';
 import type { Services } from '../mcp/server.js';
 import { getConfig } from '../config.js';
-import { SupabaseService } from '../services/supabase.js';
+import { DatabaseService } from '../services/database.js';
 import { EmbeddingsService } from '../services/embeddings.js';
 import { VaultService } from '../services/vault.js';
 import { healthRoutes } from './routes/health.js';
@@ -11,6 +11,11 @@ import { captureRoutes } from './routes/capture.js';
 import { askRoutes } from './routes/ask.js';
 import { conversationRoutes } from './routes/conversations.js';
 import { authPlugin } from './plugins/auth.js';
+import { searchApiRoutes } from './routes/search-api.js';
+import { contextRoutes } from './routes/context.js';
+import { tasksApiRoutes } from './routes/tasks-api.js';
+import { entryRoutes } from './routes/entries.js';
+import { bookmarksApiRoutes } from './routes/bookmarks-api.js';
 import { OllamaChatService } from '../services/ollama-chat.js';
 import type { ChatService } from '../services/ollama-chat.js';
 import { OpenRouterChatService } from '../services/openrouter-chat.js';
@@ -35,10 +40,10 @@ export interface CreateAppOptions {
 }
 
 function buildServices(config: Config): Services {
-  const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
+  const database = new DatabaseService(config.database.connectionString);
   const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
   const vault = new VaultService(config.vaultPath, config.contextDir);
-  return { supabase, embeddings, vault, config };
+  return { database, embeddings, vault, config };
 }
 
 function buildChatService(config: Config): ChatService {
@@ -59,9 +64,9 @@ export function createApp(config: Config, opts?: CreateAppOptions): FastifyInsta
   const chatService = buildChatService(config);
   const searxng = new SearxngService(config.searxng?.baseUrl ?? 'http://localhost:8888');
   const modelName = config.openrouter?.model ?? 'Ollama';
-  const askPipeline = opts?.askPipeline ?? new AskPipeline(chatService, searxng, services.embeddings, services.supabase, undefined, modelName);
+  const askPipeline = opts?.askPipeline ?? new AskPipeline(chatService, searxng, services.embeddings, services.database, undefined, modelName);
   const intentRouter = opts?.intentRouter ?? new IntentRouter(chatService);
-  const conversationService = opts?.conversations ?? new ConversationService(config.supabase.url, config.supabase.key);
+  const conversationService = opts?.conversations ?? new ConversationService(config.database.connectionString);
 
   // Public routes -- no auth required
   app.register(healthRoutes);
@@ -82,6 +87,13 @@ export function createApp(config: Config, opts?: CreateAppOptions): FastifyInsta
         conversations: conversationService,
         chatService,
       });
+
+      // API endpoints for client mode
+      await scoped.register(searchApiRoutes, { services });
+      await scoped.register(contextRoutes, { services });
+      await scoped.register(tasksApiRoutes, { services });
+      await scoped.register(entryRoutes, { services });
+      await scoped.register(bookmarksApiRoutes, { services });
 
       // Conversation endpoints
       await scoped.register(conversationRoutes, { conversations: conversationService });

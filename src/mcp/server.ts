@@ -1,8 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Config } from '../types.js';
-import { SupabaseService } from '../services/supabase.js';
+import type { IDatabaseService, IEmbeddingsService, IVaultService } from '../services/interfaces.js';
+import { DatabaseService } from '../services/database.js';
 import { EmbeddingsService } from '../services/embeddings.js';
 import { VaultService } from '../services/vault.js';
+import { ApiClientDatabaseService, ApiClientEmbeddingsService, ApiClientVaultService, ApiClientContext } from '../services/api-client.js';
 import { registerSearchTools } from './tools/search.js';
 import { registerBranchTools } from './tools/branch.js';
 import { registerProjectTools } from './tools/project.js';
@@ -18,23 +20,34 @@ import { EmailService } from '../services/email.js';
 import { SearxngService } from '../services/searxng.js';
 
 export interface Services {
-  supabase: SupabaseService;
-  embeddings: EmbeddingsService;
-  vault: VaultService;
+  database: IDatabaseService;
+  embeddings: IEmbeddingsService;
+  vault: IVaultService;
   config: Config;
 }
 
 export function createServer(config: Config): McpServer {
   const server = new McpServer({
-    name: 'second-brain',
+    name: 'oe-brain',
     version: '0.1.0',
   });
 
-  const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
-  const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
-  const vault = new VaultService(config.vaultPath, config.contextDir);
+  let services: Services;
 
-  const services: Services = { supabase, embeddings, vault, config };
+  if (config.api?.baseUrl) {
+    const ctx = new ApiClientContext();
+    services = {
+      database: new ApiClientDatabaseService(config.api.baseUrl, config.api.apiToken, ctx),
+      embeddings: new ApiClientEmbeddingsService(ctx),
+      vault: new ApiClientVaultService(),
+      config,
+    };
+  } else {
+    const database = new DatabaseService(config.database.connectionString);
+    const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
+    const vault = new VaultService(config.vaultPath, config.contextDir);
+    services = { database, embeddings, vault, config };
+  }
 
   registerSearchTools(server, services);
   registerBranchTools(server, services);

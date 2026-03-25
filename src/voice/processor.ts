@@ -2,7 +2,7 @@ import * as chrono from 'chrono-node';
 import type { WhisperService } from '../services/whisper.js';
 import type { VaultService } from '../services/vault.js';
 import type { EmbeddingsService } from '../services/embeddings.js';
-import type { SupabaseService } from '../services/supabase.js';
+import type { DatabaseService } from '../services/database.js';
 import type { ProcessedTracker } from '../services/processed-tracker.js';
 import { createAppleReminder } from '../services/reminders.js';
 import type { ContextEntry } from '../types.js';
@@ -43,7 +43,7 @@ export class VoiceProcessor {
     private whisper: WhisperService,
     private vault: VaultService,
     private embeddings: EmbeddingsService,
-    private supabase: SupabaseService,
+    private database: DatabaseService,
     private tracker: ProcessedTracker,
   ) {}
 
@@ -72,9 +72,9 @@ export class VoiceProcessor {
       const available = await this.embeddings.isAvailable();
       if (available) {
         const embedding = await this.embeddings.embed(entry.content);
-        await this.supabase.upsertEntry(entry, embedding);
+        await this.database.upsertEntry(entry, embedding);
       } else {
-        await this.supabase.upsertEntry(entry);
+        await this.database.upsertEntry(entry);
       }
     } catch (error) {
       console.error(`Warning: sync failed for ${audioPath}:`, error);

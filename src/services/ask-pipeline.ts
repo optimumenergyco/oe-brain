@@ -1,7 +1,6 @@
 import type { ChatService, ChatMessage } from './ollama-chat.js';
 import type { SearxngService, SearchResult } from './searxng.js';
-import type { EmbeddingsService } from './embeddings.js';
-import type { SupabaseService } from './supabase.js';
+import type { IEmbeddingsService, IDatabaseService } from './interfaces.js';
 import type { ContextEntry } from '../types.js';
 
 export interface AskConfig {
@@ -38,8 +37,8 @@ export class AskPipeline {
   constructor(
     private chatService: ChatService,
     private searxng: SearxngService,
-    private embeddings: EmbeddingsService,
-    private supabase: SupabaseService,
+    private embeddings: IEmbeddingsService,
+    private database: IDatabaseService,
     config?: Partial<AskConfig>,
     private modelName?: string,
   ) {
@@ -58,7 +57,7 @@ export class AskPipeline {
       (async (): Promise<BrainResult[]> => {
         try {
           const embedding = await this.embeddings.embed(question);
-          return await this.supabase.searchWithScores(embedding, {
+          return await this.database.searchWithScores(embedding, {
             threshold: this.config.similarityThreshold,
             limit: this.config.maxBrainResults,
           });
@@ -143,7 +142,7 @@ function buildGenerationPrompt(
   let systemContent: string;
   if (contextParts.length > 0) {
     const identity = modelName ? ` powered by ${modelName}` : '';
-    systemContent = `You are a helpful personal AI assistant called Second Brain${identity}. You have web search and personal notes capabilities. Relevant results are provided below as context.
+    systemContent = `You are a helpful personal AI assistant called OE-Brain${identity}. You have web search and personal notes capabilities. Relevant results are provided below as context.
 
 Rules:
 - Answer the user's question directly and concisely.
@@ -158,7 +157,7 @@ ${contextParts.join('\n')}`;
   } else {
     const identity2 = modelName ? ` powered by ${modelName}` : '';
     systemContent =
-      `You are a helpful personal AI assistant called Second Brain${identity2}. You have web search and personal notes capabilities, but no relevant results were found for this query. Answer based on your knowledge. Be direct and concise. You CANNOT set reminders, send messages, or create tasks. If the user asks you to do these things, tell them to phrase it as a command (e.g. "remind me to..." or "set a reminder for...").`;
+      `You are a helpful personal AI assistant called OE-Brain${identity2}. You have web search and personal notes capabilities, but no relevant results were found for this query. Answer based on your knowledge. Be direct and concise. You CANNOT set reminders, send messages, or create tasks. If the user asks you to do these things, tell them to phrase it as a command (e.g. "remind me to..." or "set a reminder for...").`;
   }
 
   const messages: ChatMessage[] = [{ role: 'system', content: systemContent }];

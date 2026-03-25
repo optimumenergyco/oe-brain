@@ -123,7 +123,7 @@ export async function askRoutes(
             updatedAt: now,
           };
           await captureEntry(entry, services);
-          answer = `Saved to your second brain: "${entry.title}"`;
+          answer = `Saved to OE-Brain: "${entry.title}"`;
           route = 'capture';
           break;
         }
@@ -138,7 +138,7 @@ export async function askRoutes(
             .replace(/^\d+\.\s*/, '')
             .replace(/\s*\[[^\]]*\]\s*$/, '')
             .trim();
-          const matches = await services.supabase.findTaskByTitle(updateQuery);
+          const matches = await services.database.findTaskByTitle(updateQuery);
           if (matches.length === 0) {
             answer = `No task found matching "${intent.update_query}".`;
             break;
@@ -151,9 +151,9 @@ export async function askRoutes(
           const available = await services.embeddings.isAvailable();
           if (available) {
             const embedding = await services.embeddings.embed(task.content);
-            await services.supabase.upsertEntry(task, embedding);
+            await services.database.upsertEntry(task, embedding);
           } else {
-            await services.supabase.upsertEntry(task);
+            await services.database.upsertEntry(task);
           }
           answer = `Updated task: "${task.title}"`;
           route = 'update';
@@ -168,7 +168,7 @@ export async function askRoutes(
             .replace(/^\d+\.\s*/, '')
             .replace(/\s*\[[^\]]*\]\s*$/, '')
             .trim();
-          const taskMatches = await services.supabase.findTaskByTitle(deleteQuery);
+          const taskMatches = await services.database.findTaskByTitle(deleteQuery);
           if (taskMatches.length === 0) {
             answer = `No task found matching "${deleteQuery}".`;
             break;
@@ -187,7 +187,7 @@ export async function askRoutes(
 
           // Delete from Supabase
           if (taskToDelete.id) {
-            await services.supabase.deleteTask(taskToDelete.id);
+            await services.database.deleteTask(taskToDelete.id);
           }
 
           answer = `Deleted task: "${taskToDelete.title}"`;
@@ -196,7 +196,7 @@ export async function askRoutes(
         }
 
         case 'list_tasks': {
-          const tasks = await services.supabase.getTasksByStatus('open', {
+          const tasks = await services.database.getTasksByStatus('open', {
             project: intent.project,
             excludeProject: intent.exclude_project,
             limit: 20,
@@ -277,7 +277,7 @@ export async function askRoutes(
 
         case 'edit_note': {
           const editQuery = intent.update_query ?? intent.title ?? text;
-          const noteMatches = await services.supabase.findEntriesByQuery(editQuery, 'learned');
+          const noteMatches = await services.database.findEntriesByQuery(editQuery, 'learned');
           if (noteMatches.length === 0) {
             answer = `No note found matching "${editQuery}".`;
             break;
@@ -301,9 +301,9 @@ export async function askRoutes(
           const editAvailable = await services.embeddings.isAvailable();
           if (editAvailable) {
             const embedding = await services.embeddings.embed(noteToEdit.content);
-            await services.supabase.upsertEntry(noteToEdit, embedding);
+            await services.database.upsertEntry(noteToEdit, embedding);
           } else {
-            await services.supabase.upsertEntry(noteToEdit);
+            await services.database.upsertEntry(noteToEdit);
           }
           answer = `Updated note: "${noteToEdit.title}"`;
           route = 'edit_note';
@@ -312,7 +312,7 @@ export async function askRoutes(
 
         case 'delete_note': {
           const deleteNoteQuery = intent.update_query ?? intent.title ?? text;
-          const deleteNoteMatches = await services.supabase.findEntriesByQuery(deleteNoteQuery, 'learned');
+          const deleteNoteMatches = await services.database.findEntriesByQuery(deleteNoteQuery, 'learned');
           if (deleteNoteMatches.length === 0) {
             answer = `No note found matching "${deleteNoteQuery}".`;
             break;
@@ -331,7 +331,7 @@ export async function askRoutes(
 
           // Delete from Supabase
           if (noteToDelete.id) {
-            await services.supabase.deleteEntry(noteToDelete.id);
+            await services.database.deleteEntry(noteToDelete.id);
           }
 
           answer = `Deleted note: "${noteToDelete.title}"`;
@@ -347,7 +347,7 @@ export async function askRoutes(
           const searchAvailable = await services.embeddings.isAvailable();
           if (searchAvailable) {
             const searchEmbedding = await services.embeddings.embed(searchQuery);
-            searchResults = await services.supabase.searchByEmbedding(searchEmbedding, {
+            searchResults = await services.database.searchByEmbedding(searchEmbedding, {
               type: 'learned',
               limit: 10,
             });
@@ -355,7 +355,7 @@ export async function askRoutes(
 
           // Fall back to text search if no embedding results
           if (searchResults.length === 0) {
-            searchResults = await services.supabase.findEntriesByQuery(searchQuery, 'learned');
+            searchResults = await services.database.findEntriesByQuery(searchQuery, 'learned');
           }
 
           if (searchResults.length === 0) {
@@ -399,7 +399,7 @@ export async function askRoutes(
         }
 
         case 'list_links': {
-          const bookmarks = await services.supabase.getBookmarksByStatus('unread', {
+          const bookmarks = await services.database.getBookmarksByStatus('unread', {
             project: intent.project,
             limit: 20,
           });
@@ -420,7 +420,7 @@ export async function askRoutes(
 
         case 'complete_link': {
           const completeQuery = intent.update_query ?? intent.title ?? text;
-          const linkMatches = await services.supabase.findBookmarkByQuery(completeQuery, 'unread');
+          const linkMatches = await services.database.findBookmarkByQuery(completeQuery, 'unread');
           if (linkMatches.length === 0) {
             answer = `No unread bookmark matching "${completeQuery}".`;
             break;
@@ -440,9 +440,9 @@ export async function askRoutes(
           const completeAvailable = await services.embeddings.isAvailable();
           if (completeAvailable) {
             const embedding = await services.embeddings.embed(linkToComplete.content);
-            await services.supabase.upsertEntry(linkToComplete, embedding);
+            await services.database.upsertEntry(linkToComplete, embedding);
           } else {
-            await services.supabase.upsertEntry(linkToComplete);
+            await services.database.upsertEntry(linkToComplete);
           }
           answer = `Marked as read: "${linkToComplete.title}"`;
           route = 'complete_link';
@@ -451,7 +451,7 @@ export async function askRoutes(
 
         case 'delete_link': {
           const deleteLinkQuery = intent.update_query ?? intent.title ?? text;
-          const deleteLinkMatches = await services.supabase.findBookmarkByQuery(deleteLinkQuery);
+          const deleteLinkMatches = await services.database.findBookmarkByQuery(deleteLinkQuery);
           if (deleteLinkMatches.length === 0) {
             answer = `No bookmark matching "${deleteLinkQuery}".`;
             break;
@@ -463,7 +463,7 @@ export async function askRoutes(
           }
           const linkToDelete = deleteLinkMatches[0];
           if (linkToDelete.vaultPath) services.vault.deleteEntry(linkToDelete.vaultPath);
-          if (linkToDelete.id) await services.supabase.deleteEntry(linkToDelete.id);
+          if (linkToDelete.id) await services.database.deleteEntry(linkToDelete.id);
           answer = `Deleted bookmark: "${linkToDelete.title}"`;
           route = 'delete_link';
           break;

@@ -29,7 +29,7 @@ export function registerPrTools(server: McpServer, services: Services): void {
     },
     async ({ pr_number, repo }) => {
       try {
-        const results = await services.supabase.getByPr(pr_number, repo);
+        const results = await services.database.getByPr(pr_number, repo);
 
         if (results.length === 0) {
           return {

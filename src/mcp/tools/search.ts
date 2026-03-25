@@ -49,7 +49,7 @@ export function registerSearchTools(server: McpServer, services: Services): void
     async ({ query, project, repo, type, limit, tag }) => {
       try {
         const embedding = await services.embeddings.embed(query);
-        const results = await services.supabase.searchByEmbedding(embedding, {
+        const results = await services.database.searchByEmbedding(embedding, {
           project,
           repo,
           type,
@@ -87,7 +87,7 @@ export function registerSearchTools(server: McpServer, services: Services): void
     async ({ query, limit }) => {
       try {
         const embedding = await services.embeddings.embed(query);
-        const results = await services.supabase.searchByEmbedding(embedding, {
+        const results = await services.database.searchByEmbedding(embedding, {
           limit: limit ?? 10,
         });
 

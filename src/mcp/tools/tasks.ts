@@ -15,7 +15,7 @@ export function registerTaskTools(server: McpServer, services: Services): void {
       },
     },
     async ({ project, status, limit }) => {
-      const tasks = await services.supabase.getTasksByStatus(
+      const tasks = await services.database.getTasksByStatus(
         status ?? 'open',
         { project: project ?? undefined, limit: limit ?? 50 }
       );
@@ -55,7 +55,7 @@ export function registerTaskTools(server: McpServer, services: Services): void {
       },
     },
     async ({ query, new_title, new_content, new_status }) => {
-      const matches = await services.supabase.findTaskByTitle(query);
+      const matches = await services.database.findTaskByTitle(query);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No task matching "${query}".` }] };
@@ -86,9 +86,9 @@ export function registerTaskTools(server: McpServer, services: Services): void {
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(task.content);
-          await services.supabase.upsertEntry(task, embedding);
+          await services.database.upsertEntry(task, embedding);
         } else {
-          await services.supabase.upsertEntry(task);
+          await services.database.upsertEntry(task);
         }
       } catch {
         return {
@@ -113,7 +113,7 @@ export function registerTaskTools(server: McpServer, services: Services): void {
       },
     },
     async ({ title }) => {
-      const matches = await services.supabase.findTaskByTitle(title);
+      const matches = await services.database.findTaskByTitle(title);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No task matching "${title}".` }] };
@@ -139,7 +139,7 @@ export function registerTaskTools(server: McpServer, services: Services): void {
       // Delete from Supabase
       try {
         if (task.id) {
-          await services.supabase.deleteTask(task.id);
+          await services.database.deleteTask(task.id);
         }
       } catch {
         return {
@@ -164,7 +164,7 @@ export function registerTaskTools(server: McpServer, services: Services): void {
       },
     },
     async ({ title }) => {
-      const matches = await services.supabase.findTaskByTitle(title, 'open');
+      const matches = await services.database.findTaskByTitle(title, 'open');
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No open task matching "${title}".` }] };
@@ -194,9 +194,9 @@ export function registerTaskTools(server: McpServer, services: Services): void {
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(task.content);
-          await services.supabase.upsertEntry(task, embedding);
+          await services.database.upsertEntry(task, embedding);
         } else {
-          await services.supabase.upsertEntry(task);
+          await services.database.upsertEntry(task);
         }
       } catch {
         return {

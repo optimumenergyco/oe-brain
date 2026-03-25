@@ -56,7 +56,7 @@ export function registerProjectTools(server: McpServer, services: Services): voi
     async ({ project, since }) => {
       try {
         const sinceDate = since ? new Date(since) : undefined;
-        const results = await services.supabase.getByProject(project, sinceDate);
+        const results = await services.database.getByProject(project, sinceDate);
 
         if (results.length === 0) {
           const msg = since

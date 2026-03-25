@@ -20,9 +20,8 @@ describe('loadConfig', () => {
     writeFileSync(configPath, `
 vault_path: /tmp/vault
 context_dir: Work/Dev-Context
-supabase:
-  url: https://example.supabase.co
-  key: test-key
+database:
+  connection_string: postgresql://localhost:5432/second_brain
 ollama:
   base_url: http://localhost:11434
   model: nomic-embed-text
@@ -35,7 +34,7 @@ projects:
     const config = loadConfig(configPath);
     expect(config.vaultPath).toBe('/tmp/vault');
     expect(config.contextDir).toBe('Work/Dev-Context');
-    expect(config.supabase.url).toBe('https://example.supabase.co');
+    expect(config.database.connectionString).toBe('postgresql://localhost:5432/second_brain');
     expect(config.ollama.model).toBe('nomic-embed-text');
     expect(config.projects.tesla.repos['core-ui']).toBe('/tmp/core-ui');
   });
@@ -44,9 +43,8 @@ projects:
     writeFileSync(configPath, `
 vault_path: ~/Documents/Vault
 context_dir: Dev
-supabase:
-  url: https://x.supabase.co
-  key: k
+database:
+  connection_string: postgresql://localhost:5432/test
 ollama:
   base_url: http://localhost:11434
   model: nomic-embed-text
@@ -57,29 +55,47 @@ projects: {}
     expect(config.vaultPath).toContain('/Documents/Vault');
   });
 
-  it('resolves env vars in supabase config', () => {
-    process.env.TEST_SB_URL = 'https://env.supabase.co';
-    process.env.TEST_SB_KEY = 'env-key';
+  it('resolves env vars in database config', () => {
+    process.env.TEST_DB_URL = 'postgresql://prod:5432/brain';
     writeFileSync(configPath, `
 vault_path: /tmp/vault
 context_dir: Dev
-supabase:
-  url: \${TEST_SB_URL}
-  key: \${TEST_SB_KEY}
+database:
+  connection_string: \${TEST_DB_URL}
 ollama:
   base_url: http://localhost:11434
   model: nomic-embed-text
 projects: {}
 `);
     const config = loadConfig(configPath);
-    expect(config.supabase.url).toBe('https://env.supabase.co');
-    expect(config.supabase.key).toBe('env-key');
-    delete process.env.TEST_SB_URL;
-    delete process.env.TEST_SB_KEY;
+    expect(config.database.connectionString).toBe('postgresql://prod:5432/brain');
+    delete process.env.TEST_DB_URL;
   });
 
   it('throws on missing config file', () => {
     expect(() => loadConfig('/nonexistent/config.yml')).toThrow();
+  });
+
+  it('loads API client config without requiring database or ollama', () => {
+    process.env.TEST_API_TOKEN = 'my-api-token';
+    writeFileSync(configPath, `
+api:
+  base_url: http://104.154.140.220:3000
+  api_token: \${TEST_API_TOKEN}
+projects:
+  tesla:
+    repos:
+      core-ui: /tmp/core-ui
+`);
+    const config = loadConfig(configPath);
+    expect(config.api).toEqual({
+      baseUrl: 'http://104.154.140.220:3000',
+      apiToken: 'my-api-token',
+    });
+    expect(config.database.connectionString).toBe('');
+    expect(config.ollama.baseUrl).toBe('');
+    expect(config.projects.tesla.repos['core-ui']).toBe('/tmp/core-ui');
+    delete process.env.TEST_API_TOKEN;
   });
 });
 
@@ -88,7 +104,7 @@ describe('resolveProjectFromPath', () => {
     const config = {
       vaultPath: '/tmp',
       contextDir: 'Dev',
-      supabase: { url: '', key: '' },
+      database: { connectionString: '' },
       ollama: { baseUrl: '', model: '' },
       projects: {
         tesla: {
@@ -107,7 +123,7 @@ describe('resolveProjectFromPath', () => {
     const config = {
       vaultPath: '/tmp',
       contextDir: 'Dev',
-      supabase: { url: '', key: '' },
+      database: { connectionString: '' },
       ollama: { baseUrl: '', model: '' },
       projects: {
         tesla: {
@@ -125,7 +141,7 @@ describe('resolveProjectFromPath', () => {
     const config = {
       vaultPath: '/tmp',
       contextDir: 'Dev',
-      supabase: { url: '', key: '' },
+      database: { connectionString: '' },
       ollama: { baseUrl: '', model: '' },
       projects: {},
     };

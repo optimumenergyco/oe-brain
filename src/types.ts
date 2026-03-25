@@ -55,9 +55,8 @@ export interface EmailAccountConfig {
 export interface Config {
   vaultPath: string;
   contextDir: string;
-  supabase: {
-    url: string;
-    key: string;
+  database: {
+    connectionString: string;
   };
   ollama: {
     baseUrl: string;
@@ -83,6 +82,10 @@ export interface Config {
   };
   searxng?: {
     baseUrl: string;
+  };
+  api?: {
+    baseUrl: string;
+    apiToken: string;
   };
 }
 

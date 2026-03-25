@@ -16,7 +16,7 @@ export function registerNoteTools(server: McpServer, services: Services): void {
       },
     },
     async ({ query, new_title, new_content, project }) => {
-      const matches = await services.supabase.findEntriesByQuery(query, 'learned', project);
+      const matches = await services.database.findEntriesByQuery(query, 'learned', project);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No note found matching "${query}".` }] };
@@ -46,9 +46,9 @@ export function registerNoteTools(server: McpServer, services: Services): void {
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(note.content);
-          await services.supabase.upsertEntry(note, embedding);
+          await services.database.upsertEntry(note, embedding);
         } else {
-          await services.supabase.upsertEntry(note);
+          await services.database.upsertEntry(note);
         }
       } catch {
         return {
@@ -74,7 +74,7 @@ export function registerNoteTools(server: McpServer, services: Services): void {
       },
     },
     async ({ query, project }) => {
-      const matches = await services.supabase.findEntriesByQuery(query, 'learned', project);
+      const matches = await services.database.findEntriesByQuery(query, 'learned', project);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No note found matching "${query}".` }] };
@@ -99,7 +99,7 @@ export function registerNoteTools(server: McpServer, services: Services): void {
 
       // Delete from Supabase
       if (note.id) {
-        await services.supabase.deleteEntry(note.id);
+        await services.database.deleteEntry(note.id);
       }
 
       return { content: [{ type: 'text' as const, text: `Deleted note: "${note.title}"` }] };
@@ -126,7 +126,7 @@ export function registerNoteTools(server: McpServer, services: Services): void {
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(query);
-          results = await services.supabase.searchByEmbedding(embedding, {
+          results = await services.database.searchByEmbedding(embedding, {
             type: 'learned',
             project,
             limit: maxResults,
@@ -138,7 +138,7 @@ export function registerNoteTools(server: McpServer, services: Services): void {
 
       // Fall back to text search if no embedding results
       if (results.length === 0) {
-        results = await services.supabase.findEntriesByQuery(query, 'learned', project);
+        results = await services.database.findEntriesByQuery(query, 'learned', project);
         results = results.slice(0, maxResults);
       }
 

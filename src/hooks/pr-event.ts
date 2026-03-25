@@ -2,7 +2,8 @@ import { getConfig } from '../config.js';
 import { getGitContext } from '../services/git.js';
 import { VaultService } from '../services/vault.js';
 import { EmbeddingsService } from '../services/embeddings.js';
-import { SupabaseService } from '../services/supabase.js';
+import { DatabaseService } from '../services/database.js';
+import { captureViaApi } from '../services/api-capture.js';
 import type { ContextEntry } from '../types.js';
 
 interface HookInput {
@@ -20,9 +21,6 @@ export async function handlePrEvent(input: HookInput): Promise<void> {
 
   const config = getConfig();
   const gitCtx = await getGitContext(cwd, config);
-  const vault = new VaultService(config.vaultPath, config.contextDir);
-  const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
-  const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
 
   const now = new Date();
   const entry: ContextEntry = {
@@ -37,13 +35,26 @@ export async function handlePrEvent(input: HookInput): Promise<void> {
     updatedAt: now,
   };
 
+  if (config.api?.baseUrl) {
+    try {
+      await captureViaApi(entry, config.api);
+    } catch {
+      // API capture failed — non-blocking
+    }
+    return;
+  }
+
+  const vault = new VaultService(config.vaultPath, config.contextDir);
+  const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
+  const db = new DatabaseService(config.database.connectionString);
+
   const vaultPath = vault.writeEntry(entry);
   entry.vaultPath = vaultPath;
 
   try {
     if (await embeddings.isAvailable()) {
       const embedding = await embeddings.embed(entry.content);
-      await supabase.upsertEntry(entry, embedding);
+      await db.upsertEntry(entry, embedding);
     }
   } catch {
     // Vault is primary, DB sync later

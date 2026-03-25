@@ -58,7 +58,7 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
       },
     },
     async ({ status, link_type, project, limit }) => {
-      const bookmarks = await services.supabase.getBookmarksByStatus(
+      const bookmarks = await services.database.getBookmarksByStatus(
         status ?? 'unread',
         { project: project ?? undefined, linkType: link_type ?? undefined, limit: limit ?? 25 }
       );
@@ -99,7 +99,7 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
       },
     },
     async ({ query }) => {
-      const matches = await services.supabase.findBookmarkByQuery(query, 'unread');
+      const matches = await services.database.findBookmarkByQuery(query, 'unread');
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No unread bookmark matching "${query}".` }] };
@@ -127,9 +127,9 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(bookmark.content);
-          await services.supabase.upsertEntry(bookmark, embedding);
+          await services.database.upsertEntry(bookmark, embedding);
         } else {
-          await services.supabase.upsertEntry(bookmark);
+          await services.database.upsertEntry(bookmark);
         }
       } catch {
         return {
@@ -158,7 +158,7 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
       },
     },
     async ({ query, new_title, new_description, new_tags, new_link_type }) => {
-      const matches = await services.supabase.findBookmarkByQuery(query);
+      const matches = await services.database.findBookmarkByQuery(query);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No bookmark matching "${query}".` }] };
@@ -191,9 +191,9 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
         const available = await services.embeddings.isAvailable();
         if (available) {
           const embedding = await services.embeddings.embed(bookmark.content);
-          await services.supabase.upsertEntry(bookmark, embedding);
+          await services.database.upsertEntry(bookmark, embedding);
         } else {
-          await services.supabase.upsertEntry(bookmark);
+          await services.database.upsertEntry(bookmark);
         }
       } catch {
         return {
@@ -218,7 +218,7 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
       },
     },
     async ({ query }) => {
-      const matches = await services.supabase.findBookmarkByQuery(query);
+      const matches = await services.database.findBookmarkByQuery(query);
 
       if (matches.length === 0) {
         return { content: [{ type: 'text' as const, text: `No bookmark matching "${query}".` }] };
@@ -241,7 +241,7 @@ export function registerBookmarkTools(server: McpServer, services: Services): vo
       }
 
       if (bookmark.id) {
-        await services.supabase.deleteEntry(bookmark.id);
+        await services.database.deleteEntry(bookmark.id);
       }
 
       return { content: [{ type: 'text' as const, text: `Deleted bookmark: "${bookmark.title}"` }] };

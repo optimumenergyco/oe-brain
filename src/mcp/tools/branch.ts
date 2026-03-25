@@ -42,7 +42,7 @@ export function registerBranchTools(server: McpServer, services: Services): void
           };
         }
 
-        const results = await services.supabase.getByBranch(branch, repo, project);
+        const results = await services.database.getByBranch(branch, repo, project);
 
         if (results.length === 0) {
           return {

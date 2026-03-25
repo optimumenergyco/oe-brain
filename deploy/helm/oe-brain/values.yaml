@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: gcr.io/oe-tesla-development-2/oe-brain
+  tag: v1
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer
+  port: 3000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Config file mounted from ConfigMap
+config:
+  vaultPath: /data/vault
+  contextDir: context
+  ollamaBaseUrl: http://ollama:11434
+  ollamaModel: nomic-embed-text
+  serverPort: 3000
+  openrouter:
+    enabled: true
+    model: google/gemini-2.5-flash
+
+# Secrets — set via --set or sealed secrets
+secrets:
+  databaseUrl: ""
+  apiToken: ""
+  openrouterApiKey: ""
+
+# Persistent volume for vault markdown files
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+# Use existing Postgres on the cluster (no subchart)
+# Just provide the connection string in secrets.databaseUrl

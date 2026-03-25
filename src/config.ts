@@ -29,8 +29,13 @@ export function loadConfig(configPath: string): Config {
   const raw = readFileSync(configPath, 'utf-8');
   const parsed = resolveEnvVarsDeep(yaml.load(raw)) as Record<string, unknown>;
 
-  const supabase = parsed.supabase as Record<string, string>;
-  const ollama = parsed.ollama as Record<string, string>;
+  const api = parsed.api as Record<string, string> | undefined;
+  const apiConfig = api
+    ? { baseUrl: api.base_url, apiToken: api.api_token }
+    : undefined;
+
+  const database = parsed.database as Record<string, string> | undefined;
+  const ollama = parsed.ollama as Record<string, string> | undefined;
   const projects = parsed.projects as Record<string, { repos: Record<string, string>; related_repos?: string[] }>;
 
   const resolvedProjects: Config['projects'] = {};
@@ -46,7 +51,7 @@ export function loadConfig(configPath: string): Config {
   const voiceConfig = voice
     ? {
         watchDir: expandTilde(voice.watch_dir),
-        processedLog: expandTilde(voice.processed_log ?? '~/.second-brain/processed-voice.json'),
+        processedLog: expandTilde(voice.processed_log ?? '~/.oe-brain/processed-voice.json'),
         whisperBinary: voice.whisper_binary ?? 'whisper-cli',
         whisperModel: voice.whisper_model ? expandTilde(voice.whisper_model) : '',
       }
@@ -81,22 +86,23 @@ export function loadConfig(configPath: string): Config {
     : undefined;
 
   return {
-    vaultPath: expandTilde(parsed.vault_path as string),
-    contextDir: parsed.context_dir as string,
-    supabase: { url: supabase.url, key: supabase.key },
-    ollama: { baseUrl: ollama.base_url, model: ollama.model },
+    vaultPath: parsed.vault_path ? expandTilde(parsed.vault_path as string) : '',
+    contextDir: (parsed.context_dir as string) ?? '',
+    database: { connectionString: database?.connection_string ?? '' },
+    ollama: { baseUrl: ollama?.base_url ?? '', model: ollama?.model ?? '' },
     openrouter: openrouterConfig,
     projects: resolvedProjects,
     voice: voiceConfig,
     server: serverConfig,
     email: emailConfig,
+    api: apiConfig,
   };
 }
 
-const DEFAULT_CONFIG_PATH = resolve(homedir(), '.second-brain', 'config.yml');
+const DEFAULT_CONFIG_PATH = resolve(homedir(), '.oe-brain', 'config.yml');
 
 export function getConfig(configPath?: string): Config {
-  return loadConfig(configPath ?? DEFAULT_CONFIG_PATH);
+  return loadConfig(configPath ?? process.env.OE_BRAIN_CONFIG ?? DEFAULT_CONFIG_PATH);
 }
 
 export function resolveProjectFromPath(

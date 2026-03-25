@@ -1,6 +1,8 @@
 import { getConfig } from '../config.js';
 import { getGitContext } from '../services/git.js';
-import { SupabaseService } from '../services/supabase.js';
+import { DatabaseService } from '../services/database.js';
+import { ApiClientDatabaseService, ApiClientContext } from '../services/api-client.js';
+import type { IDatabaseService } from '../services/interfaces.js';
 
 interface SessionStartInput {
   cwd: string;
@@ -16,12 +18,18 @@ export async function handleSessionStart(input: SessionStartInput): Promise<stri
     return '';  // Not in a git repo — no context to inject
   }
 
-  const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
+  let db: IDatabaseService;
+  if (config.api?.baseUrl) {
+    const ctx = new ApiClientContext();
+    db = new ApiClientDatabaseService(config.api.baseUrl, config.api.apiToken, ctx);
+  } else {
+    db = new DatabaseService(config.database.connectionString);
+  }
 
   const parts: string[] = [];
 
   // Get branch context
-  const branchContext = await supabase.getByBranch(gitCtx.branch, gitCtx.repoName, gitCtx.project);
+  const branchContext = await db.getByBranch(gitCtx.branch, gitCtx.repoName, gitCtx.project);
   if (branchContext.length > 0) {
     parts.push(`## Current Branch: ${gitCtx.branch}\n\n${branchContext[0].content}`);
   }
@@ -29,7 +37,7 @@ export async function handleSessionStart(input: SessionStartInput): Promise<stri
   // Get recent project context
   if (gitCtx.project) {
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const projectContext = await supabase.getByProject(gitCtx.project, oneWeekAgo);
+    const projectContext = await db.getByProject(gitCtx.project, oneWeekAgo);
 
     const otherEntries = projectContext
       .filter((e) => e.branch !== gitCtx!.branch)
@@ -43,5 +51,5 @@ export async function handleSessionStart(input: SessionStartInput): Promise<stri
 
   if (parts.length === 0) return '';
 
-  return `# Second Brain Context\n\n${parts.join('\n\n---\n\n')}`;
+  return `# OE-Brain Context\n\n${parts.join('\n\n---\n\n')}`;
 }

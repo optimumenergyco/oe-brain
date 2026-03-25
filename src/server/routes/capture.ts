@@ -5,7 +5,7 @@ import type { ContextType, ContextEntry } from '../../types.js';
 import { captureEntry } from '../../services/capture.js';
 
 const VALID_CONTEXT_TYPES: ContextType[] = [
-  'branch_context', 'pr_context', 'decision', 'learned', 'session', 'task',
+  'branch_context', 'pr_context', 'decision', 'learned', 'session', 'task', 'bookmark',
 ];
 
 const captureBodySchema = z.object({
@@ -13,6 +13,12 @@ const captureBodySchema = z.object({
   title: z.string().optional(),
   type: z.enum(VALID_CONTEXT_TYPES as [ContextType, ...ContextType[]]).default('learned'),
   tags: z.array(z.string()).optional(),
+  project: z.string().optional(),
+  repo: z.string().optional(),
+  branch: z.string().optional(),
+  prNumber: z.number().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  id: z.string().optional(),
 });
 
 export async function captureRoutes(app: FastifyInstance, opts: { services: Services }) {
@@ -28,14 +34,19 @@ export async function captureRoutes(app: FastifyInstance, opts: { services: Serv
       });
     }
 
-    const { text, title, type, tags } = parsed.data;
+    const { text, title, type, tags, project, repo, branch, prNumber, metadata, id } = parsed.data;
     const now = new Date();
 
     const entry: ContextEntry = {
+      id,
       type,
       title: title ?? text.slice(0, 60),
       content: text,
-      metadata: { tags: tags ?? [] },
+      project,
+      repo,
+      branch,
+      prNumber,
+      metadata: { ...metadata, tags: tags ?? metadata?.tags ?? [] },
       createdAt: now,
       updatedAt: now,
     };

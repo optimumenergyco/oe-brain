@@ -9,7 +9,7 @@ import type { ConversationService } from '../../src/services/conversation.js';
 const TEST_CONFIG: Config = {
   vaultPath: '/tmp/test-vault',
   contextDir: 'context',
-  supabase: { url: 'http://localhost:54321', key: 'test-key' },
+  database: { connectionString: 'postgresql://localhost:5432/test' },
   ollama: { baseUrl: 'http://localhost:11434', model: 'test-model' },
   projects: {},
   server: {
@@ -44,9 +44,9 @@ export function buildTestAppWithServices(overrides?: MockOverrides) {
       isAvailable: vi.fn(async () => false),
       embed: vi.fn(),
     } as unknown as Services['embeddings'],
-    supabase: {
+    database: {
       upsertEntry: vi.fn(async () => {}),
-    } as unknown as Services['supabase'],
+    } as unknown as Services['database'],
     config: TEST_CONFIG,
   };
 
@@ -62,7 +62,7 @@ export function buildTestAppWithAsk(overrides?: AskMockOverrides) {
   const mockServices: Services = {
     vault: { writeEntry: vi.fn(), readEntry: vi.fn(), listEntries: vi.fn(() => []), getEntryPath: vi.fn() } as unknown as Services['vault'],
     embeddings: { isAvailable: vi.fn(async () => false), embed: vi.fn() } as unknown as Services['embeddings'],
-    supabase: { upsertEntry: vi.fn(async () => {}), findTaskByTitle: vi.fn(async () => []) } as unknown as Services['supabase'],
+    database: { upsertEntry: vi.fn(async () => {}), findTaskByTitle: vi.fn(async () => []) } as unknown as Services['database'],
     config: TEST_CONFIG,
   };
 

@@ -3,7 +3,7 @@ import { AskPipeline } from '../../src/services/ask-pipeline.js';
 import type { OllamaChatService } from '../../src/services/ollama-chat.js';
 import type { SearxngService } from '../../src/services/searxng.js';
 import type { EmbeddingsService } from '../../src/services/embeddings.js';
-import type { SupabaseService } from '../../src/services/supabase.js';
+import type { DatabaseService } from '../../src/services/database.js';
 
 function createMocks() {
   const ollamaChat = {
@@ -21,11 +21,11 @@ function createMocks() {
     isAvailable: vi.fn(),
   } as unknown as EmbeddingsService;
 
-  const supabase = {
+  const database = {
     searchWithScores: vi.fn(),
-  } as unknown as SupabaseService;
+  } as unknown as DatabaseService;
 
-  return { ollamaChat, searxng, embeddings, supabase };
+  return { ollamaChat, searxng, embeddings, database };
 }
 
 describe('AskPipeline', () => {
@@ -38,13 +38,13 @@ describe('AskPipeline', () => {
       mocks.ollamaChat,
       mocks.searxng,
       mocks.embeddings,
-      mocks.supabase,
+      mocks.database,
     );
   });
 
-  it('routes brain question through embed + supabase + chatWithFallback', async () => {
+  it('routes brain question through embed + database + chatWithFallback', async () => {
     vi.mocked(mocks.embeddings.embed).mockResolvedValue([0.1, 0.2, 0.3]);
-    vi.mocked(mocks.supabase.searchWithScores).mockResolvedValue([
+    vi.mocked(mocks.database.searchWithScores).mockResolvedValue([
       {
         entry: {
           id: '1',
@@ -83,7 +83,7 @@ describe('AskPipeline', () => {
 
   it('routes web question when only web results are found', async () => {
     vi.mocked(mocks.embeddings.embed).mockResolvedValue([0.1, 0.2]);
-    vi.mocked(mocks.supabase.searchWithScores).mockResolvedValue([]);
+    vi.mocked(mocks.database.searchWithScores).mockResolvedValue([]);
     vi.mocked(mocks.searxng.search).mockResolvedValue([
       { title: 'Quantum Physics Intro', url: 'https://example.com/quantum', content: 'Quantum is...', engine: 'google', score: 0.9 },
     ]);
@@ -108,7 +108,7 @@ describe('AskPipeline', () => {
   it('routes both question through brain + web + chatWithFallback', async () => {
     vi.mocked(mocks.ollamaChat.classify).mockResolvedValue('both');
     vi.mocked(mocks.embeddings.embed).mockResolvedValue([0.1, 0.2]);
-    vi.mocked(mocks.supabase.searchWithScores).mockResolvedValue([
+    vi.mocked(mocks.database.searchWithScores).mockResolvedValue([
       {
         entry: {
           id: '1', type: 'learned' as const, title: 'My ML Notes',
@@ -141,7 +141,7 @@ describe('AskPipeline', () => {
   it('falls back from brain to web when no vault results pass threshold', async () => {
     vi.mocked(mocks.ollamaChat.classify).mockResolvedValue('brain');
     vi.mocked(mocks.embeddings.embed).mockResolvedValue([0.1, 0.2]);
-    vi.mocked(mocks.supabase.searchWithScores).mockResolvedValue([]);
+    vi.mocked(mocks.database.searchWithScores).mockResolvedValue([]);
     vi.mocked(mocks.searxng.search).mockResolvedValue([
       { title: 'Web Result', url: 'https://example.com', content: 'Info', engine: 'google', score: 0.7 },
     ]);
@@ -178,7 +178,7 @@ describe('AskPipeline', () => {
 
   it('includes model name from chatWithFallback result', async () => {
     vi.mocked(mocks.embeddings.embed).mockResolvedValue([0.1]);
-    vi.mocked(mocks.supabase.searchWithScores).mockResolvedValue([]);
+    vi.mocked(mocks.database.searchWithScores).mockResolvedValue([]);
     vi.mocked(mocks.searxng.search).mockResolvedValue([]);
     vi.mocked(mocks.ollamaChat.chatWithFallback).mockResolvedValue({
       content: 'Answer',

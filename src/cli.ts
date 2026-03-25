@@ -8,7 +8,7 @@ import { handleSessionStart } from './hooks/session-start.js';
 const program = new Command();
 
 program
-  .name('second-brain')
+  .name('oe-brain')
   .description('Dev context capture and retrieval for Claude Code')
   .version('0.1.0');
 
@@ -25,12 +25,12 @@ program
       }
       const raw = Buffer.concat(chunks).toString().trim();
       if (!raw) {
-        console.error('second-brain: no stdin provided, skipping capture-hook');
+        console.error('oe-brain: no stdin provided, skipping capture-hook');
         return;
       }
       input = JSON.parse(raw);
     } catch {
-      console.error('second-brain: invalid or missing stdin for capture-hook, skipping');
+      console.error('oe-brain: invalid or missing stdin for capture-hook, skipping');
       return;
     }
 
@@ -59,12 +59,12 @@ program
       }
       const raw = Buffer.concat(chunks).toString().trim();
       if (!raw) {
-        console.error('second-brain: no stdin provided, skipping session-context');
+        console.error('oe-brain: no stdin provided, skipping session-context');
         return;
       }
       input = JSON.parse(raw);
     } catch {
-      console.error('second-brain: invalid or missing stdin for session-context, skipping');
+      console.error('oe-brain: invalid or missing stdin for session-context, skipping');
       return;
     }
 
@@ -81,17 +81,17 @@ program
 
 program
   .command('sync')
-  .description('Re-embed any vault entries missing from Supabase')
+  .description('Re-embed any vault entries missing from the database')
   .action(async () => {
     const { getConfig } = await import('./config.js');
     const { VaultService } = await import('./services/vault.js');
     const { EmbeddingsService } = await import('./services/embeddings.js');
-    const { SupabaseService } = await import('./services/supabase.js');
+    const { DatabaseService } = await import('./services/database.js');
 
     const config = getConfig();
     const vault = new VaultService(config.vaultPath, config.contextDir);
     const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
-    const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
+    const db = new DatabaseService(config.database.connectionString);
 
     const entries = vault.listAllEntries();
     console.log(`Found ${entries.length} vault entries (full vault). Syncing...`);
@@ -100,7 +100,7 @@ program
     for (const entry of entries) {
       try {
         const embedding = await embeddings.embed(entry.content);
-        await supabase.upsertEntry(entry, embedding);
+        await db.upsertEntry(entry, embedding);
         synced++;
         console.log(`  Synced: ${entry.vaultPath}`);
       } catch (err) {
@@ -118,7 +118,7 @@ program
     const { getConfig } = await import('./config.js');
     const { VaultService } = await import('./services/vault.js');
     const { EmbeddingsService } = await import('./services/embeddings.js');
-    const { SupabaseService } = await import('./services/supabase.js');
+    const { DatabaseService } = await import('./services/database.js');
     const { WhisperService } = await import('./services/whisper.js');
     const { ProcessedTracker } = await import('./services/processed-tracker.js');
     const { VoiceProcessor } = await import('./voice/processor.js');
@@ -126,17 +126,17 @@ program
 
     const config = getConfig();
     if (!config.voice) {
-      console.error('No voice config found in ~/.second-brain/config.yml');
+      console.error('No voice config found in ~/.oe-brain/config.yml');
       console.error('Add a voice section with watch_dir pointing to your Voice Memos directory.');
       process.exit(1);
     }
 
     const vault = new VaultService(config.vaultPath, config.contextDir);
     const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
-    const supabase = new SupabaseService(config.supabase.url, config.supabase.key);
+    const db = new DatabaseService(config.database.connectionString);
     const whisper = new WhisperService(config.voice.whisperBinary, config.voice.whisperModel);
     const tracker = new ProcessedTracker(config.voice.processedLog);
-    const processor = new VoiceProcessor(whisper, vault, embeddings, supabase, tracker);
+    const processor = new VoiceProcessor(whisper, vault, embeddings, db, tracker);
     const watcher = new VoiceWatcher(config.voice.watchDir, processor);
 
     await watcher.processExisting();

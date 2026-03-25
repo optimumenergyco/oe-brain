@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "oe-brain.fullname" . }}
+  labels:
+    {{- include "oe-brain.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "oe-brain.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "oe-brain.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: oe-brain
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "oe-brain.fullname" . }}
+                  key: DATABASE_URL
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "oe-brain.fullname" . }}
+                  key: API_TOKEN
+            - name: OE_BRAIN_CONFIG
+              value: /etc/oe-brain/config.yml
+            {{- if .Values.secrets.openrouterApiKey }}
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "oe-brain.fullname" . }}
+                  key: OPENROUTER_API_KEY
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/oe-brain
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: vault
+              mountPath: {{ .Values.config.vaultPath }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "oe-brain.fullname" . }}-config
+        {{- if .Values.persistence.enabled }}
+        - name: vault
+          persistentVolumeClaim:
+            claimName: {{ include "oe-brain.fullname" . }}-vault
+        {{- end }}

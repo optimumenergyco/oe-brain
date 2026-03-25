@@ -1,6 +1,8 @@
 # OE Brain
 
-Persistent dev context capture and retrieval for Claude Code sessions. Captures decisions, learnings, tasks, bookmarks, and session context to a shared PostgreSQL database with vector embeddings for semantic search.
+**OE Brain** is a shared knowledge base for the engineering team. It automatically captures what you're working on — commits, decisions, learnings, tasks — and makes it searchable from within Claude Code. Think of it as persistent memory across sessions: what you learned yesterday is available to you (and your teammates) today.
+
+Under the hood, it stores context entries in PostgreSQL with vector embeddings for semantic search.
 
 ## How It Works
 
@@ -92,7 +94,24 @@ Add hooks to `~/.claude/settings.json`:
 }
 ```
 
-### 4. Verify
+### 4. Enable Automatic Capture
+
+Add the following to your global `~/.claude/CLAUDE.md` so Claude proactively uses the second-brain tools without being asked:
+
+```markdown
+## Second Brain
+
+Always use the second-brain MCP tools proactively:
+- At session start: load branch context (`get_branch_context`) and check open tasks (`list_tasks`)
+- During work: capture architectural decisions (`capture_decision`) and non-obvious learnings (`capture_learned`) as they happen — don't batch these at the end
+- When a TODO emerges: use `capture_task` immediately
+- At session end: always write a `capture_session_summary` with what was done, key decisions, and next steps
+
+Don't wait to be asked. If you made a tradeoff or learned something surprising, capture it.
+Skip routine changes — only capture what would be useful to you or a teammate in a future session.
+```
+
+### 5. Verify
 
 Start a Claude Code session. You should see context loaded at startup and have access to all MCP tools (`search_context`, `capture_decision`, `list_tasks`, etc.).
 

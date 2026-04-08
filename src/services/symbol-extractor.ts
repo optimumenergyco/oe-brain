@@ -1,8 +1,19 @@
-import { Parser, Language } from 'web-tree-sitter';
+// web-tree-sitter has inconsistent TypeScript types in ESM — use dynamic import with any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyNode = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyParser = any;
+
 import { fileURLToPath } from 'url';
 import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Use createRequire for web-tree-sitter in ESM context to avoid type issues
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const { Parser, Language }: any = _require('web-tree-sitter');
 
 export interface ExtractedSymbol {
   symbolName: string;
@@ -22,7 +33,7 @@ const GRAMMAR_FILES: Record<SupportedLanguage, string> = {
 };
 
 export class SymbolExtractor {
-  private parsers = new Map<string, Parser>();
+  private parsers = new Map<string, AnyParser>();
   private initialized = false;
 
   async init(): Promise<void> {
@@ -74,16 +85,16 @@ export class SymbolExtractor {
   }
 
   private extractRubySymbols(
-    tree: Parser.Tree,
+    tree: AnyNode,
     code: string,
     filePath: string,
   ): ExtractedSymbol[] {
     const symbols: ExtractedSymbol[] = [];
     const lines = code.split('\n');
 
-    const visit = (node: Parser.SyntaxNode, containerStack: string[]) => {
+    const visit = (node: AnyNode, containerStack: string[]) => {
       if (node.type === 'class') {
-        const nameNode = node.childForFieldName('name') ?? node.children.find(c => c.type === 'constant');
+        const nameNode = node.childForFieldName('name') ?? node.children.find((c: AnyNode) => c.type === 'constant');
         const name = nameNode?.text ?? 'UnknownClass';
         const lineStart = node.startPosition.row + 1;
         const lineEnd = node.endPosition.row + 1;
@@ -107,7 +118,7 @@ export class SymbolExtractor {
       }
 
       if (node.type === 'module') {
-        const nameNode = node.childForFieldName('name') ?? node.children.find(c => c.type === 'constant');
+        const nameNode = node.childForFieldName('name') ?? node.children.find((c: AnyNode) => c.type === 'constant');
         const name = nameNode?.text ?? 'UnknownModule';
         const lineStart = node.startPosition.row + 1;
         const lineEnd = node.endPosition.row + 1;
@@ -130,7 +141,7 @@ export class SymbolExtractor {
       }
 
       if (node.type === 'method') {
-        const nameNode = node.childForFieldName('name') ?? node.children.find(c => c.type === 'identifier');
+        const nameNode = node.childForFieldName('name') ?? node.children.find((c: AnyNode) => c.type === 'identifier');
         const methodName = nameNode?.text ?? 'unknown';
         const qualifiedName = containerStack.length > 0
           ? `${containerStack[containerStack.length - 1]}#${methodName}`
@@ -162,7 +173,7 @@ export class SymbolExtractor {
   }
 
   private extractTypeScriptSymbols(
-    tree: Parser.Tree,
+    tree: AnyNode,
     code: string,
     filePath: string,
     language: string,
@@ -172,7 +183,7 @@ export class SymbolExtractor {
     const langLabel = language === 'tsx' ? 'TSX' : 'TypeScript';
 
     const addSymbol = (
-      node: Parser.SyntaxNode,
+      node: AnyNode,
       name: string,
       symbolType: string,
     ) => {
@@ -190,9 +201,9 @@ export class SymbolExtractor {
       });
     };
 
-    const visit = (node: Parser.SyntaxNode, containerName: string | null) => {
+    const visit = (node: AnyNode, containerName: string | null) => {
       if (node.type === 'export_statement') {
-        const decl = node.childForFieldName('declaration') ?? node.children.find(c =>
+        const decl = node.childForFieldName('declaration') ?? node.children.find((c: AnyNode) =>
           ['function_declaration', 'class_declaration', 'interface_declaration', 'lexical_declaration'].includes(c.type)
         );
 
@@ -202,17 +213,17 @@ export class SymbolExtractor {
         }
 
         if (decl.type === 'function_declaration') {
-          const nameNode = decl.childForFieldName('name') ?? decl.children.find(c => c.type === 'identifier');
+          const nameNode = decl.childForFieldName('name') ?? decl.children.find((c: AnyNode) => c.type === 'identifier');
           if (nameNode) {
             addSymbol(node, nameNode.text, 'function');
           }
         } else if (decl.type === 'class_declaration') {
-          const nameNode = decl.childForFieldName('name') ?? decl.children.find(c => c.type === 'type_identifier');
+          const nameNode = decl.childForFieldName('name') ?? decl.children.find((c: AnyNode) => c.type === 'type_identifier');
           if (nameNode) {
             const className = nameNode.text;
             addSymbol(node, className, 'class');
             // Visit class body for methods
-            const body = decl.childForFieldName('body') ?? decl.children.find(c => c.type === 'class_body');
+            const body = decl.childForFieldName('body') ?? decl.children.find((c: AnyNode) => c.type === 'class_body');
             if (body) {
               for (const child of body.children) {
                 visit(child, className);
@@ -220,7 +231,7 @@ export class SymbolExtractor {
             }
           }
         } else if (decl.type === 'interface_declaration') {
-          const nameNode = decl.childForFieldName('name') ?? decl.children.find(c => c.type === 'type_identifier');
+          const nameNode = decl.childForFieldName('name') ?? decl.children.find((c: AnyNode) => c.type === 'type_identifier');
           if (nameNode) {
             addSymbol(node, nameNode.text, 'interface');
           }
@@ -228,8 +239,8 @@ export class SymbolExtractor {
           // Check for arrow function assigned to PascalCase variable (React component)
           for (const varDeclarator of decl.children) {
             if (varDeclarator.type !== 'variable_declarator') continue;
-            const varName = varDeclarator.childForFieldName('name') ?? varDeclarator.children.find(c => c.type === 'identifier');
-            const value = varDeclarator.childForFieldName('value') ?? varDeclarator.children.find(c => c.type === 'arrow_function');
+            const varName = varDeclarator.childForFieldName('name') ?? varDeclarator.children.find((c: AnyNode) => c.type === 'identifier');
+            const value = varDeclarator.childForFieldName('value') ?? varDeclarator.children.find((c: AnyNode) => c.type === 'arrow_function');
             if (varName && value?.type === 'arrow_function') {
               const name = varName.text;
               const isPascalCase = /^[A-Z]/.test(name);
@@ -245,7 +256,7 @@ export class SymbolExtractor {
       }
 
       if (node.type === 'method_definition' && containerName) {
-        const nameNode = node.childForFieldName('name') ?? node.children.find(c => c.type === 'property_identifier');
+        const nameNode = node.childForFieldName('name') ?? node.children.find((c: AnyNode) => c.type === 'property_identifier');
         if (nameNode) {
           const qualifiedName = `${containerName}#${nameNode.text}`;
           addSymbol(node, qualifiedName, 'method');

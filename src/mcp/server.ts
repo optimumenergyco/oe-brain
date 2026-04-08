@@ -16,6 +16,7 @@ import { registerNoteTools } from './tools/notes.js';
 import { registerEmailTools } from './tools/email.js';
 import { registerWebSearchTools } from './tools/web-search.js';
 import { registerBookmarkTools } from './tools/bookmarks.js';
+import { registerCodeSearchTools } from './tools/code-search.js';
 import { EmailService } from '../services/email.js';
 import { SearxngService } from '../services/searxng.js';
 
@@ -50,6 +51,7 @@ export function createServer(config: Config): McpServer {
   }
 
   registerSearchTools(server, services);
+  registerCodeSearchTools(server, services);
   registerBranchTools(server, services);
   registerProjectTools(server, services);
   registerPrTools(server, services);

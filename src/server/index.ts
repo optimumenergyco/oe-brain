@@ -16,6 +16,8 @@ import { contextRoutes } from './routes/context.js';
 import { tasksApiRoutes } from './routes/tasks-api.js';
 import { entryRoutes } from './routes/entries.js';
 import { bookmarksApiRoutes } from './routes/bookmarks-api.js';
+import { embedApiRoutes } from './routes/embed-api.js';
+import { codeSearchApiRoutes } from './routes/code-search-api.js';
 import { OllamaChatService } from '../services/ollama-chat.js';
 import type { ChatService } from '../services/ollama-chat.js';
 import { OpenRouterChatService } from '../services/openrouter-chat.js';
@@ -94,6 +96,8 @@ export function createApp(config: Config, opts?: CreateAppOptions): FastifyInsta
       await scoped.register(tasksApiRoutes, { services });
       await scoped.register(entryRoutes, { services });
       await scoped.register(bookmarksApiRoutes, { services });
+      await scoped.register(embedApiRoutes, { services });
+      await scoped.register(codeSearchApiRoutes, { services });
 
       // Conversation endpoints
       await scoped.register(conversationRoutes, { conversations: conversationService });

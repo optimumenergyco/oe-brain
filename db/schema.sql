@@ -183,7 +183,7 @@ returns table (
   content text,
   embed_text text,
   indexed_at timestamptz,
-  score float
+  score double precision
 )
 language plpgsql
 as $$
@@ -211,7 +211,7 @@ begin
   combined as (
     select
       coalesce(s.id, k.id) as id,
-      coalesce(1.0 / (60 + s.rank), 0) + coalesce(1.0 / (60 + k.rank), 0) as rrf_score
+      (coalesce(1.0 / (60 + s.rank), 0) + coalesce(1.0 / (60 + k.rank), 0))::double precision as rrf_score
     from semantic s
     full outer join keyword k on s.id = k.id
   )

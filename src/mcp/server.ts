@@ -37,9 +37,16 @@ export function createServer(config: Config): McpServer {
 
   if (config.api?.baseUrl) {
     const ctx = new ApiClientContext();
+
+    // Prefer local Ollama for embeddings (needed for code search),
+    // fall back to API-proxied embeddings
+    const embeddings = config.ollama?.baseUrl && config.ollama?.model
+      ? new EmbeddingsService(config.ollama.baseUrl, config.ollama.model)
+      : new ApiClientEmbeddingsService(ctx, config.api.baseUrl, config.api.apiToken);
+
     services = {
       database: new ApiClientDatabaseService(config.api.baseUrl, config.api.apiToken, ctx),
-      embeddings: new ApiClientEmbeddingsService(ctx),
+      embeddings,
       vault: new ApiClientVaultService(),
       config,
     };

@@ -119,18 +119,39 @@ program
   .action(async (repoPath: string, opts: { incremental?: boolean; repoName?: string }) => {
     const pathMod = await import('path');
     const { getConfig } = await import('./config.js');
-    const { EmbeddingsService } = await import('./services/embeddings.js');
     const { DatabaseService } = await import('./services/database.js');
     const { CodeIndexer } = await import('./services/code-indexer.js');
 
     const config = getConfig();
-    const embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
+
+    // Embeddings: prefer local Ollama, fall back to remote API
+    let embeddings: import('./services/interfaces.js').IEmbeddingsService;
+
+    if (config.ollama?.baseUrl && config.ollama?.model) {
+      const { EmbeddingsService } = await import('./services/embeddings.js');
+      embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
+    } else if (config.api?.baseUrl && config.api?.apiToken) {
+      const { ApiClientEmbeddingsService, ApiClientContext } = await import('./services/api-client.js');
+      const ctx = new ApiClientContext();
+      embeddings = new ApiClientEmbeddingsService(ctx, config.api.baseUrl, config.api.apiToken);
+      console.log(`Using remote API for embeddings: ${config.api.baseUrl}`);
+    } else {
+      console.error('Error: No embedding source configured.');
+      console.error('Add ollama.base_url + ollama.model or api.base_url + api.api_token to config.');
+      process.exit(1);
+    }
+
+    if (!config.database?.connectionString) {
+      console.error('Error: database.connection_string is required for indexing.');
+      console.error('Add it to ~/.oe-brain/config.yml');
+      process.exit(1);
+    }
+
     const db = new DatabaseService(config.database.connectionString);
 
     const available = await embeddings.isAvailable();
     if (!available) {
-      console.error(`Error: Ollama is not available at ${config.ollama.baseUrl}`);
-      console.error(`Start Ollama and ensure the "${config.ollama.model}" model is pulled.`);
+      console.error('Error: Embeddings service is not available.');
       process.exit(1);
     }
 

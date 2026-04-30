@@ -1,6 +1,11 @@
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { GitHubService } from '../../services/github.js';
 import type { StandupActivity } from '../../services/github.js';
+
+const execFileAsync = promisify(execFile);
 
 function formatStandup(activity: StandupActivity): string {
   const date = new Date(activity.date + 'T12:00:00Z');
@@ -34,12 +39,19 @@ export function registerStandupTools(server: McpServer): void {
     'get_standup',
     {
       description:
-        'Get a standup summary of recent GitHub activity for the optijon account. Shows merged PRs and commits pushed to PR branches. Auto-detects the last active day — no parameters needed.',
-      inputSchema: {},
+        'Get a standup summary of recent GitHub activity. Shows merged PRs and commits pushed to PR branches. Auto-detects the last active day. Defaults to the currently authenticated gh CLI user if no username is provided.',
+      inputSchema: {
+        username: z.string().optional().describe('GitHub username to fetch activity for (defaults to the authenticated gh CLI user)'),
+      },
     },
-    async () => {
+    async ({ username }) => {
       try {
-        const github = new GitHubService('optijon');
+        let ghUser = username;
+        if (!ghUser) {
+          const { stdout } = await execFileAsync('gh', ['api', 'user', '--jq', '.login']);
+          ghUser = stdout.trim();
+        }
+        const github = new GitHubService(ghUser);
         const activity = await github.getStandupActivity();
 
         if (!activity) {

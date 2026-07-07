@@ -79,7 +79,8 @@ describe('IntentRouter', () => {
 
     const result = await router.classify('Hello there', []);
 
-    expect(result).toEqual({ intent: 'ask' });
+    // Fallback attaches the raw text (first 60 chars) as a provisional title.
+    expect(result).toEqual({ intent: 'ask', title: 'Hello there' });
   });
 
   it('falls back to "ask" on LLM error (thrown exception)', async () => {
@@ -94,7 +95,8 @@ describe('IntentRouter', () => {
 
     const result = await router.classify('Hello', []);
 
-    expect(result).toEqual({ intent: 'ask' });
+    // Fallback attaches the raw text (first 60 chars) as a provisional title.
+    expect(result).toEqual({ intent: 'ask', title: 'Hello' });
   });
 
   it('includes conversation history in the prompt when provided', async () => {
@@ -118,7 +120,7 @@ describe('IntentRouter', () => {
     expect(messages).toHaveLength(3);
     expect(messages[0].role).toBe('system');
     expect(messages[1].role).toBe('system');
-    expect(messages[1].content).toContain('Conversation history');
+    expect(messages[1].content).toContain('Recent conversation history');
     expect(messages[1].content).toContain('Tell me about my project');
     expect(messages[1].content).toContain('Your project is a knowledge system.');
     expect(messages[2].role).toBe('user');

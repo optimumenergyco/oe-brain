@@ -23,6 +23,18 @@ export interface StandupActivity {
 
 const DEFAULT_BRANCHES = new Set(['refs/heads/main', 'refs/heads/master', 'refs/heads/production', 'refs/heads/develop']);
 
+// GitHub event timestamps are UTC (ISO 8601). Bucket them by the local calendar date of
+// the machine running the tool so "last active day" matches the user's own day boundary
+// rather than UTC's — otherwise evening work in US timezones (e.g. Central, Pacific) spills
+// into the next UTC day and gets split across two standups.
+export function toLocalDate(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export class GitHubService {
   constructor(private username: string) {}
 
@@ -75,11 +87,11 @@ export class GitHubService {
     );
     if (relevant.length === 0) return null;
 
-    // Find the last active day (calendar date of most recent event)
-    const lastDate = relevant[0].created_at.slice(0, 10);
+    // Find the last active day (local calendar date of most recent event)
+    const lastDate = toLocalDate(relevant[0].created_at);
 
     // Filter to only that day
-    const dayEvents = relevant.filter((e) => e.created_at.startsWith(lastDate));
+    const dayEvents = relevant.filter((e) => toLocalDate(e.created_at) === lastDate);
 
     // Separate merged PRs and pushes
     const mergedPREvents = dayEvents.filter(

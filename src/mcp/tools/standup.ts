@@ -51,6 +51,15 @@ export function registerStandupTools(server: McpServer): void {
           const { stdout } = await execFileAsync('gh', ['api', 'user', '--jq', '.login']);
           ghUser = stdout.trim();
         }
+        if (!ghUser) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: 'Could not determine a GitHub user. Pass a `username`, or run `gh auth login` so the gh CLI is authenticated.',
+            }],
+            isError: true,
+          };
+        }
         const github = new GitHubService(ghUser);
         const activity = await github.getStandupActivity();
 

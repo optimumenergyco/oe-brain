@@ -112,6 +112,103 @@ program
   });
 
 program
+  .command('index-code <repo-path>')
+  .description('Index a codebase for semantic code search')
+  .option('--incremental', 'Only re-index changed files (skip files with matching hash)')
+  .option('--repo-name <name>', 'Override repo name (default: directory basename)')
+  .action(async (repoPath: string, opts: { incremental?: boolean; repoName?: string }) => {
+    const pathMod = await import('path');
+    const { getConfig } = await import('./config.js');
+    const { DatabaseService } = await import('./services/database.js');
+    const { CodeIndexer } = await import('./services/code-indexer.js');
+
+    const config = getConfig();
+
+    // Embeddings: prefer local Ollama, fall back to remote API
+    let embeddings: import('./services/interfaces.js').IEmbeddingsService;
+
+    if (config.ollama?.baseUrl && config.ollama?.model) {
+      const { EmbeddingsService } = await import('./services/embeddings.js');
+      embeddings = new EmbeddingsService(config.ollama.baseUrl, config.ollama.model);
+    } else if (config.api?.baseUrl && config.api?.apiToken) {
+      const { ApiClientEmbeddingsService, ApiClientContext } = await import('./services/api-client.js');
+      const ctx = new ApiClientContext();
+      embeddings = new ApiClientEmbeddingsService(ctx, config.api.baseUrl, config.api.apiToken);
+      console.log(`Using remote API for embeddings: ${config.api.baseUrl}`);
+    } else {
+      console.error('Error: No embedding source configured.');
+      console.error('Add ollama.base_url + ollama.model or api.base_url + api.api_token to config.');
+      process.exit(1);
+    }
+
+    if (!config.database?.connectionString) {
+      console.error('Error: database.connection_string is required for indexing.');
+      console.error('Add it to ~/.oe-brain/config.yml');
+      process.exit(1);
+    }
+
+    const db = new DatabaseService(config.database.connectionString);
+
+    const available = await embeddings.isAvailable();
+    if (!available) {
+      console.error('Error: Embeddings service is not available.');
+      process.exit(1);
+    }
+
+    const resolvedPath = pathMod.resolve(repoPath);
+    const repoName = opts.repoName ?? pathMod.basename(resolvedPath);
+    const indexer = new CodeIndexer(db as any, embeddings);
+
+    console.log(`Indexing ${repoName} at ${resolvedPath}...`);
+    if (opts.incremental) console.log('(incremental mode — skipping unchanged files)');
+
+    const result = await indexer.indexRepo(resolvedPath, repoName, {
+      incremental: opts.incremental,
+      onProgress: (msg) => console.log(`  ${msg}`),
+    });
+
+    console.log(`\nDone. Indexed: ${result.indexed}, Skipped: ${result.skipped}, Errors: ${result.errors}`);
+    await db.close();
+  });
+
+program
+  .command('index-status')
+  .description('Show code index statistics per repo')
+  .action(async () => {
+    const { getConfig } = await import('./config.js');
+    const { DatabaseService } = await import('./services/database.js');
+
+    const config = getConfig();
+    const db = new DatabaseService(config.database.connectionString);
+
+    const status = await (db as any).getCodeIndexStatus();
+    if (status.length === 0) {
+      console.log('No repos indexed yet. Run: oe-brain index-code <repo-path>');
+    } else {
+      console.log('Indexed repositories:\n');
+      for (const s of status) {
+        console.log(`  ${s.repo}: ${s.count} symbols (last indexed: ${s.latest.toISOString().slice(0, 16)})`);
+      }
+    }
+    await db.close();
+  });
+
+program
+  .command('index-drop <repo>')
+  .description('Remove all code index entries for a repo')
+  .action(async (repo: string) => {
+    const { getConfig } = await import('./config.js');
+    const { DatabaseService } = await import('./services/database.js');
+
+    const config = getConfig();
+    const db = new DatabaseService(config.database.connectionString);
+
+    const count = await (db as any).dropCodeEntries(repo);
+    console.log(`Dropped ${count} entries for "${repo}".`);
+    await db.close();
+  });
+
+program
   .command('voice-watch')
   .description('Watch for new Voice Memos and transcribe them into the second brain')
   .action(async () => {

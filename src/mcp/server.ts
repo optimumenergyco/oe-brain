@@ -16,6 +16,7 @@ import { registerNoteTools } from './tools/notes.js';
 import { registerEmailTools } from './tools/email.js';
 import { registerWebSearchTools } from './tools/web-search.js';
 import { registerBookmarkTools } from './tools/bookmarks.js';
+import { registerCodeSearchTools } from './tools/code-search.js';
 import { EmailService } from '../services/email.js';
 import { SearxngService } from '../services/searxng.js';
 
@@ -36,9 +37,16 @@ export function createServer(config: Config): McpServer {
 
   if (config.api?.baseUrl) {
     const ctx = new ApiClientContext();
+
+    // Prefer local Ollama for embeddings (needed for code search),
+    // fall back to API-proxied embeddings
+    const embeddings = config.ollama?.baseUrl && config.ollama?.model
+      ? new EmbeddingsService(config.ollama.baseUrl, config.ollama.model)
+      : new ApiClientEmbeddingsService(ctx, config.api.baseUrl, config.api.apiToken);
+
     services = {
       database: new ApiClientDatabaseService(config.api.baseUrl, config.api.apiToken, ctx),
-      embeddings: new ApiClientEmbeddingsService(ctx),
+      embeddings,
       vault: new ApiClientVaultService(),
       config,
     };
@@ -50,6 +58,7 @@ export function createServer(config: Config): McpServer {
   }
 
   registerSearchTools(server, services);
+  registerCodeSearchTools(server, services);
   registerBranchTools(server, services);
   registerProjectTools(server, services);
   registerPrTools(server, services);

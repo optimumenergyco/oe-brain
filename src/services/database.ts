@@ -1,5 +1,6 @@
 import pg from 'pg';
 import type { ContextEntry, ContextType } from '../types.js';
+import type { CodeEntry, CodeSearchResult } from '../types/code.js';
 
 const { Pool } = pg;
 
@@ -337,6 +338,111 @@ export class DatabaseService {
       params,
     );
     return rows.map((r: DbRow) => this.toContextEntry(r));
+  }
+
+  async upsertCodeEntry(entry: CodeEntry, embedding?: number[]): Promise<void> {
+    const embeddingStr = embedding ? `[${embedding.join(',')}]` : null;
+    await this.pool.query(
+      `INSERT INTO code_entries
+        (repo, file_path, language, symbol_name, symbol_type, line_start, line_end,
+         content, embed_text, embedding, file_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11)
+      ON CONFLICT (repo, file_path, symbol_name, line_start) DO UPDATE SET
+        language      = EXCLUDED.language,
+        symbol_type   = EXCLUDED.symbol_type,
+        line_end      = EXCLUDED.line_end,
+        content       = EXCLUDED.content,
+        embed_text    = EXCLUDED.embed_text,
+        embedding     = COALESCE(EXCLUDED.embedding, code_entries.embedding),
+        file_hash     = EXCLUDED.file_hash,
+        indexed_at    = NOW()`,
+      [
+        entry.repo,
+        entry.filePath,
+        entry.language ?? null,
+        entry.symbolName ?? null,
+        entry.symbolType ?? null,
+        entry.lineStart ?? null,
+        entry.lineEnd ?? null,
+        entry.content,
+        entry.embedText,
+        embeddingStr,
+        entry.fileHash ?? null,
+      ],
+    );
+  }
+
+  async searchCode(
+    embedding: number[],
+    queryText: string,
+    opts?: { repo?: string; language?: string; symbolType?: string; limit?: number },
+  ): Promise<CodeSearchResult[]> {
+    const embeddingStr = `[${embedding.join(',')}]`;
+    const { rows } = await this.pool.query(
+      `SELECT * FROM search_code($1::vector, $2, $3, $4, $5, $6)`,
+      [
+        embeddingStr,
+        queryText,
+        opts?.limit ?? 10,
+        opts?.repo ?? null,
+        opts?.language ?? null,
+        opts?.symbolType ?? null,
+      ],
+    );
+    return rows.map((r: Record<string, unknown>) => this.toCodeSearchResult(r));
+  }
+
+  async getCodeIndexStatus(): Promise<Array<{ repo: string; count: number; latest: Date }>> {
+    const { rows } = await this.pool.query(
+      `SELECT repo, count(*)::int as count, max(indexed_at) as latest
+       FROM code_entries GROUP BY repo ORDER BY repo`,
+    );
+    return rows.map((r: Record<string, unknown>) => ({
+      repo: r.repo as string,
+      count: Number(r.count),
+      latest: new Date(r.latest as string),
+    }));
+  }
+
+  async dropCodeEntries(repo: string): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM code_entries WHERE repo = $1`,
+      [repo],
+    );
+    return (result.rowCount as number) ?? 0;
+  }
+
+  async getCodeFileHashes(repo: string): Promise<Map<string, string>> {
+    const { rows } = await this.pool.query(
+      `SELECT DISTINCT ON (file_path) file_path, file_hash
+       FROM code_entries WHERE repo = $1 AND file_hash IS NOT NULL`,
+      [repo],
+    );
+    return new Map(rows.map((r: Record<string, unknown>) => [r.file_path as string, r.file_hash as string]));
+  }
+
+  async deleteCodeEntriesForFile(repo: string, filePath: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM code_entries WHERE repo = $1 AND file_path = $2`,
+      [repo, filePath],
+    );
+  }
+
+  private toCodeSearchResult(row: Record<string, unknown>): CodeSearchResult {
+    return {
+      id: row.id as string | undefined,
+      repo: row.repo as string,
+      filePath: row.file_path as string,
+      language: row.language as string | undefined,
+      symbolName: row.symbol_name as string | undefined,
+      symbolType: row.symbol_type as string | undefined,
+      lineStart: row.line_start as number | undefined,
+      lineEnd: row.line_end as number | undefined,
+      content: row.content as string,
+      embedText: row.embed_text as string,
+      indexedAt: row.indexed_at ? new Date(row.indexed_at as string) : undefined,
+      score: (row.score as number) ?? 0,
+    };
   }
 
   private toContextEntry(row: DbRow): ContextEntry {

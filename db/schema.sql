@@ -130,3 +130,107 @@ begin
   limit row_limit;
 end;
 $$;
+
+-- =============================================================================
+-- Semantic Code Search (separate from context_entries — can be dropped cleanly)
+-- =============================================================================
+
+-- Code search entries table
+create table if not exists code_entries (
+  id          uuid primary key default gen_random_uuid(),
+  repo        text not null,
+  file_path   text not null,
+  language    text,
+  symbol_name text,
+  symbol_type text,
+  line_start  int,
+  line_end    int,
+  content     text not null,
+  embed_text  text not null,
+  embedding   vector(768),
+  tsv         tsvector generated always as (to_tsvector('english', embed_text)) stored,
+  file_hash   text,
+  indexed_at  timestamptz default now(),
+  unique(repo, file_path, symbol_name, line_start)
+);
+
+create index if not exists idx_code_entries_embedding on code_entries
+  using hnsw (embedding vector_cosine_ops);
+create index if not exists idx_code_entries_tsv on code_entries using gin(tsv);
+create index if not exists idx_code_entries_repo on code_entries (repo);
+create index if not exists idx_code_entries_language on code_entries (language);
+create index if not exists idx_code_entries_file_path on code_entries (repo, file_path);
+
+-- Hybrid code search function using Reciprocal Rank Fusion (RRF)
+-- Combines pgvector semantic similarity + pg full-text keyword ranking
+create or replace function search_code(
+  query_embedding vector(768),
+  query_text text,
+  match_count int default 10,
+  filter_repo text default null,
+  filter_language text default null,
+  filter_symbol_type text default null
+)
+returns table (
+  id uuid,
+  repo text,
+  file_path text,
+  language text,
+  symbol_name text,
+  symbol_type text,
+  line_start int,
+  line_end int,
+  content text,
+  embed_text text,
+  indexed_at timestamptz,
+  score double precision
+)
+language plpgsql
+as $$
+begin
+  return query
+  with semantic as (
+    select ce.id, row_number() over (order by ce.embedding <=> query_embedding) as rank
+    from code_entries ce
+    where ce.embedding is not null
+      and (filter_repo is null or ce.repo = filter_repo)
+      and (filter_language is null or ce.language = filter_language)
+      and (filter_symbol_type is null or ce.symbol_type = filter_symbol_type)
+    order by ce.embedding <=> query_embedding
+    limit match_count * 3
+  ),
+  keyword as (
+    select ce.id, row_number() over (order by ts_rank(ce.tsv, plainto_tsquery('english', query_text)) desc) as rank
+    from code_entries ce
+    where ce.tsv @@ plainto_tsquery('english', query_text)
+      and (filter_repo is null or ce.repo = filter_repo)
+      and (filter_language is null or ce.language = filter_language)
+      and (filter_symbol_type is null or ce.symbol_type = filter_symbol_type)
+    limit match_count * 3
+  ),
+  combined as (
+    select
+      coalesce(s.id, k.id) as id,
+      (coalesce(1.0 / (60 + s.rank), 0) + coalesce(1.0 / (60 + k.rank), 0))::double precision as rrf_score
+    from semantic s
+    full outer join keyword k on s.id = k.id
+  )
+  select
+    ce.id,
+    ce.repo,
+    ce.file_path,
+    ce.language,
+    ce.symbol_name,
+    ce.symbol_type,
+    ce.line_start,
+    ce.line_end,
+    ce.content,
+    ce.embed_text,
+    ce.indexed_at,
+    c.rrf_score as score
+  from combined c
+  join code_entries ce on ce.id = c.id
+  order by c.rrf_score desc
+  limit match_count;
+end;
+$$;

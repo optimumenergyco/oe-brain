@@ -229,17 +229,69 @@ export class ApiClientDatabaseService implements IDatabaseService {
   async deleteEntry(id: string): Promise<void> {
     await this.delete(`/api/entries/${id}`);
   }
+
+  async searchCode(
+    embedding: number[],
+    queryText: string,
+    opts?: { repo?: string; language?: string; symbolType?: string; limit?: number },
+  ): Promise<import('../types/code.js').CodeSearchResult[]> {
+    const data = await this.post('/api/search-code', {
+      embedding,
+      query_text: queryText,
+      repo: opts?.repo,
+      language: opts?.language,
+      symbol_type: opts?.symbolType,
+      limit: opts?.limit ?? 10,
+    }) as { results: import('../types/code.js').CodeSearchResult[] };
+    return data.results;
+  }
 }
 
 export class ApiClientEmbeddingsService implements IEmbeddingsService {
-  constructor(private ctx: ApiClientContext) {}
+  constructor(
+    private ctx: ApiClientContext,
+    private baseUrl?: string,
+    private apiToken?: string,
+  ) {}
 
   async embed(text: string): Promise<number[]> {
     this.ctx.lastQueryText = text;
+
+    if (this.baseUrl && this.apiToken) {
+      const res = await fetch(`${this.baseUrl}/api/embed`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiToken}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        throw new Error(`Embed API error: ${res.status} ${await res.text()}`);
+      }
+      const data = await res.json() as { embedding: number[] };
+      return data.embedding;
+    }
+
     return [];
   }
 
   async isAvailable(): Promise<boolean> {
+    if (this.baseUrl && this.apiToken) {
+      try {
+        const res = await fetch(`${this.baseUrl}/api/embed`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiToken}`,
+          },
+          body: JSON.stringify({ text: 'test' }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    }
     return true;
   }
 }
